@@ -1,0 +1,55 @@
+week1
+quesion 1
+$ docker build --help
+----iidfile string
+
+quesion 2
+$ docker run -it --entrypoint=bash python:3.9
+$ pip list 
+--3
+
+quesion 3
+
+SELECT CAST(lpep_pickup_datetime AS date) as date, 
+CAST(lpep_dropoff_datetime AS date) as date,
+count(1)
+FROM green_taxi_trips
+WHERE CAST(lpep_pickup_datetime AS date) = '2019-01-15' and 
+CAST(lpep_dropoff_datetime AS date) = '2019-01-15'
+group by date;
+
+--20530
+
+quesion 4
+
+SELECT CAST(lpep_pickup_datetime AS DATE) as "date", max(trip_distance) as "total_distance"
+FROM green_taxi_trips
+GROUP BY CAST(lpep_pickup_datetime AS DATE)
+ORDER BY "total_distance" DESC;
+--2019-01-15
+
+quesion 5
+
+SELECT passenger_count, count(*)
+FROM green_taxi_trips
+WHERE CAST(lpep_pickup_datetime as DATE) = '2019-01-01' AND passenger_count = 2
+GROUP BY passenger_count
+UNION ALL
+SELECT passenger_count, count(*)
+FROM green_taxi_trips
+WHERE CAST(lpep_pickup_datetime as DATE) = '2019-01-01' AND passenger_count = 3
+GROUP BY passenger_count;
+--2: 1282 ; 3: 254
+
+quesion 6
+
+SELECT z."Zone" as "PU", z1."Zone" as "DO", MAX(tip_amount)
+FROM green_taxi_trips t left join zones z
+	on t."PULocationID" = z."LocationID"
+	left join zones z1 
+	on t."DOLocationID" = z1."LocationID"
+WHERE z."Zone" = 'Astoria'
+GROUP BY z."Zone", z1."Zone"
+ORDER BY max(tip_amount) DESC;
+
+--Long Island City/Queens Plaza 
