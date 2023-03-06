@@ -1,0 +1,219 @@
+Week 5 Homework
+In this homework we'll put what we learned about Spark in practice.
+For this homework we will be using the FHVHV 2021-06 data found here. FHVHV Data
+Question 1:
+Install Spark and PySpark
+	• Install Spark
+	• Run PySpark
+	• Create a local spark session
+	• Execute spark.version.
+What's the output?
+	• 3.3.2 (choose)
+	• 2.1.4
+	• 1.2.3
+	• 5.4
+
+import pyspark
+from pyspark.sql import SparkSession
+from pyspark.sql import types
+spark = SparkSession.builder \
+    .master("local[*]") \
+    .appName('test') \
+    .getOrCreate()
+spark.version
+'3.3.2'
+
+
+Question 2:
+VFHW June 2021
+Read it with Spark using the same schema as we did in the lessons.
+We will use this dataset for all the remaining questions.
+Repartition it to 12 partitions and save it to parquet.
+What is the average size of the Parquet (ending with .parquet extension) Files that were created (in MB)? Select the answer which most closely matches.
+	• 2MB (choose)
+	• 24MB 
+	• 100MB
+	• 250MB
+
+schema = types.StructType([
+    types.StructField('dispatching_base_num', types.StringType(), True),
+    types.StructField('pickup_datetime', types.TimestampType(), True),
+    types.StructField('dropoff_datetime', types.TimestampType(), True),
+    types.StructField('PULocationID', types.IntegerType(), True),
+    types.StructField('DOLocationID', types.IntegerType(), True),
+    types.StructField('SR_Flag', types.StringType(), True),
+    types.StructField('Affiliated_base_number', types.StringType(), True),
+])
+df = spark.read \
+    .option("header", "true") \
+    .schema(schema) \
+    .csv('fhvhv_tripdata_2021-06.csv')
+df = df.repartition(12)
+df.write.parquet('data/pq/fhvhv/2021/06/')
+
+!ls -lh data/pq/fhvhv/2021/06/
+total 256M
+-rw-r--r-- 1 linli linli   0 Mar  6 19:45 _SUCCESS
+-rw-r--r-- 1 linli linli 22M Mar  6 19:45 part-00000-3ae580ed-16bd-434d-8535-c983c6487ce2-c000.snappy.parquet
+-rw-r--r-- 1 linli linli 22M Mar  6 19:45 part-00001-3ae580ed-16bd-434d-8535-c983c6487ce2-c000.snappy.parquet
+-rw-r--r-- 1 linli linli 22M Mar  6 19:45 part-00002-3ae580ed-16bd-434d-8535-c983c6487ce2-c000.snappy.parquet
+-rw-r--r-- 1 linli linli 22M Mar  6 19:45 part-00003-3ae580ed-16bd-434d-8535-c983c6487ce2-c000.snappy.parquet
+-rw-r--r-- 1 linli linli 22M Mar  6 19:45 part-00004-3ae580ed-16bd-434d-8535-c983c6487ce2-c000.snappy.parquet
+-rw-r--r-- 1 linli linli 22M Mar  6 19:45 part-00005-3ae580ed-16bd-434d-8535-c983c6487ce2-c000.snappy.parquet
+-rw-r--r-- 1 linli linli 22M Mar  6 19:45 part-00006-3ae580ed-16bd-434d-8535-c983c6487ce2-c000.snappy.parquet
+-rw-r--r-- 1 linli linli 22M Mar  6 19:45 part-00007-3ae580ed-16bd-434d-8535-c983c6487ce2-c000.snappy.parquet
+-rw-r--r-- 1 linli linli 22M Mar  6 19:45 part-00008-3ae580ed-16bd-434d-8535-c983c6487ce2-c000.snappy.parquet
+-rw-r--r-- 1 linli linli 22M Mar  6 19:45 part-00009-3ae580ed-16bd-434d-8535-c983c6487ce2-c000.snappy.parquet
+-rw-r--r-- 1 linli linli 22M Mar  6 19:45 part-00010-3ae580ed-16bd-434d-8535-c983c6487ce2-c000.snappy.parquet
+-rw-r--r-- 1 linli linli 22M Mar  6 19:45 part-00011-3ae580ed-16bd-434d-8535-c983c6487ce2-c000.snappy.parquet
+
+
+Question 3:
+Count records
+How many taxi trips were there on June 15?
+
+Consider only trips that started on June 15.
+	• 308,164
+	• 12,856
+	• 452,470 (choose)
+	• 50,982
+df = spark.read.parquet('data/pq/fhvhv/2021/06/')
+
+from pyspark.sql import functions as F
+
+df.withColumn('pickup_date', F.to_date(df.pickup_datetime)) \
+    .filter("pickup_date = '2021-06-15'") \
+    .count()
+# 452,470
+
+df.createOrReplaceTempView('fhvhv_2021_06')
+spark.sql("""
+SELECT
+    COUNT(1)
+FROM
+    fhvhv_2021_06
+WHERE
+    to_date(pickup_datetime) = '2021-06-15';
+""").show()
++--------+
+|count(1)|
++--------+
+|  452470|
++--------+
+
+Question 4:
+Longest trip for each day
+Now calculate the duration for each trip.
+How long was the longest trip in Hours?
+	• 66.87 Hours (choose)
+	• 243.44 Hours
+	• 7.68 Hours
+	• 3.32 Hours
+df.columns
+# ['dispatching_base_num',
+#  'pickup_datetime',
+#  'dropoff_datetime',
+#  'PULocationID',
+#  'DOLocationID',
+#  'SR_Flag',
+#  'Affiliated_base_number']
+
+df.withColumn('duration', (df.dropoff_datetime.cast('long') - df.pickup_datetime.cast('long'))/60/60) \
+    .withColumn('pickup_date', F.to_date(df.pickup_datetime)) \
+    .groupBy('pickup_date') \
+        .max('duration') \
+    .orderBy('max(duration)', ascending=False) \
+    .limit(5) \
+    .show()
+# +-----------+------------------+
+# |pickup_date|     max(duration)|
+# +-----------+------------------+
+# | 2021-06-25| 66.87888888888888|
+# | 2021-06-22|25.549722222222222|
+# | 2021-06-27|19.980833333333333|
+# | 2021-06-26| 18.19722222222222|
+# | 2021-06-23|16.466944444444444|
+# +-----------+------------------+
+
+spark.sql("""
+SELECT
+    to_date(pickup_datetime) AS pickup_date,
+    MAX((CAST(dropoff_datetime AS LONG) - CAST(pickup_datetime AS LONG)) / 60 / 60) AS duration
+FROM
+    fhvhv_2021_06
+GROUP BY
+    1
+ORDER BY
+    2 DESC
+LIMIT 10;
+""").show()
+# +-----------+------------------+
+# |pickup_date|          duration|
+# +-----------+------------------+
+# | 2021-06-25| 66.87888888888888|
+# | 2021-06-22|25.549722222222222|
+# | 2021-06-27|19.980833333333333|
+# | 2021-06-26| 18.19722222222222|
+# | 2021-06-23|16.466944444444444|
+# +-----------+------------------+
+
+Question 5:
+User Interface
+Spark’s User Interface which shows application's dashboard runs on which local port?
+	• 80
+	• 443
+	• 4040 (choose)
+	• 8080
+
+
+Question 6:
+Most frequent pickup location zone
+Load the zone lookup data into a temp view in Spark
+Zone Data
+Using the zone lookup data and the fhvhv June 2021 data, what is the name of the most frequent pickup location zone?
+	• East Chelsea
+	• Astoria
+	• Union Sq
+	• Crown Heights North
+
+
+df_zones = spark.read.parquet('zones')
+df_zones.columns
+# ['LocationID', 'Borough', 'Zone', 'service_zone']
+
+df.columns
+# ['dispatching_base_num',
+#  'pickup_datetime',
+#  'dropoff_datetime',
+#  'PULocationID',
+#  'DOLocationID',
+#  'SR_Flag',
+#  'Affiliated_base_number']
+
+df_zones.createOrReplaceTempView("zones")
+spark.sql("""
+SELECT zones.Zone, COUNT(1)
+FROM
+    fhvhv_2021_06 fhv
+    LEFT JOIN zones ON fhv.PULocationID = zones.LocationID
+GROUP BY 1
+ORDER BY 2 DESC
+LIMIT 5;
+""").show()
+# +-------------------+--------+
+# |               Zone|count(1)|
+# +-------------------+--------+
+# |Crown Heights North|  231279|
+# |       East Village|  221244|
+# |        JFK Airport|  188867|
+# |     Bushwick South|  187929|
+# |      East New York|  186780|
+# +-------------------+--------+
+
+
+
+
+
+
+
+
